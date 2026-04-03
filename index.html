@@ -386,7 +386,9 @@ const FB_CONFIG = {
 
 const fbApp = initializeApp(FB_CONFIG);
 const db = getFirestore(fbApp);
-const DOC_ID = 'hogar'; // documento compartido del hogar
+const DOC_ID = 'hogar';
+console.log('Firebase iniciado:', fbApp.name);
+console.log('Firestore listo:', db);
 
 // ── Sync Firebase ────────────────────────────────
 let isSyncing = false;
