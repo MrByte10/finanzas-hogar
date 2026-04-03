@@ -368,163 +368,58 @@ html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-seri
   </div>
 </div>
 
-<script type="module">
-// ═══════════════════════════════════════════════
-// FIREBASE + GEMINI
-// ═══════════════════════════════════════════════
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+<!-- Firebase CDN -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+console.log('Aurum arrancando...');
+firebase.initializeApp({apiKey:"AIzaSyAKf4OjRbFXwGXhyxlZPNlJNDzXbeDZ6u4",authDomain:"cyberfinance-64a23.firebaseapp.com",projectId:"cyberfinance-64a23",storageBucket:"cyberfinance-64a23.firebasestorage.app",messagingSenderId:"797645711269",appId:"1:797645711269:web:5ca15ea62c532711ceaa4c"});
+const db=firebase.firestore();
+const DOC=db.collection('aurum').doc('hogar');
+console.log('Firebase OK');
+let isSyncing=false;
 
-const FB_CONFIG = {
-  apiKey: "AIzaSyAKf4OjRbFXwGXhyxlZPNlJNDzXbeDZ6u4",
-  authDomain: "cyberfinance-64a23.firebaseapp.com",
-  projectId: "cyberfinance-64a23",
-  storageBucket: "cyberfinance-64a23.firebasestorage.app",
-  messagingSenderId: "797645711269",
-  appId: "1:797645711269:web:5ca15ea62c532711ceaa4c"
-};
-
-const fbApp = initializeApp(FB_CONFIG);
-const db = getFirestore(fbApp);
-const DOC_ID = 'hogar';
-console.log('Firebase iniciado:', fbApp.name);
-console.log('Firestore listo:', db);
-
-// ── Sync Firebase ────────────────────────────────
-let isSyncing = false;
-
-async function loadFromFirebase() {
-  try {
-    const snap = await getDoc(doc(db, 'aurum', DOC_ID));
-    if (snap.exists()) {
-      S = { ...def(), ...snap.data() };
-      render();
-      showSyncStatus('✓ Sincronizado');
-    }
-  } catch(e) {
-    showSyncStatus('Sin conexión — modo local');
-  }
-}
-
-async function saveToFirebase() {
-  if (isSyncing) return;
-  isSyncing = true;
-  try {
-    await setDoc(doc(db, 'aurum', DOC_ID), S);
-    showSyncStatus('✓ Guardado');
-  } catch(e) {
-    showSyncStatus('Error al guardar');
-  }
-  isSyncing = false;
-}
-
-// Escuchar cambios en tiempo real (tu mujer actualiza → tú ves los cambios)
-function startRealtimeSync() {
-  onSnapshot(doc(db, 'aurum', DOC_ID), (snap) => {
-    if (snap.exists() && !isSyncing) {
-      S = { ...def(), ...snap.data() };
-      render();
-      showSyncStatus('✓ Actualizado');
-    }
-  });
-}
-
-function showSyncStatus(msg) {
-  const el = document.getElementById('sync-status');
-  if (el) { el.textContent = msg; setTimeout(() => el.textContent = '', 3000); }
-}
+async function loadFromFirebase(){try{const s=await DOC.get();if(s.exists){S={...def(),...s.data()};render();showSync('✓ Sincronizado');}else{await saveToFirebase();}}catch(e){console.error('FB load:',e);showSync('Sin conexión');}}
+async function saveToFirebase(){if(isSyncing)return;isSyncing=true;try{await DOC.set(S);showSync('✓ Guardado');}catch(e){console.error('FB save:',e);}isSyncing=false;}
+function startRealtimeSync(){DOC.onSnapshot(s=>{if(s.exists&&!isSyncing){S={...def(),...s.data()};render();showSync('✓ Actualizado');}},e=>console.error('sync:',e));}
+function showSync(m){const el=document.getElementById('sync-status');if(el){el.textContent=m;setTimeout(()=>el.textContent='',3000);}}
 
 const CATS=[{id:'food',icon:'◈',name:'Compra',bg:'#1e2e28'},{id:'resto',icon:'◇',name:'Resto',bg:'#2e1e1e'},{id:'transport',icon:'◉',name:'Transporte',bg:'#1e242e'},{id:'ocio',icon:'◎',name:'Ocio',bg:'#261e2e'},{id:'salud',icon:'◐',name:'Salud',bg:'#2e261e'},{id:'hogar',icon:'□',name:'Hogar',bg:'#1e2e2e'},{id:'ropa',icon:'◑',name:'Ropa',bg:'#2e1e26'},{id:'otro',icon:'·',name:'Otro',bg:'#242424'}];
-
-let selCat='otro', recOn=false;
-
+let selCat='otro',recOn=false;
 function load(){try{return JSON.parse(localStorage.getItem('fin_v2'))||def()}catch(e){return def()}}
 function def(){const n=new Date();return{names:['Tú','Pareja'],incomes:[0,0],saving:0,extras:[],expenses:[],pStart:new Date(n.getFullYear(),n.getMonth(),1).toISOString(),pEnd:new Date(n.getFullYear(),n.getMonth()+1,0).toISOString()}}
-function save(){
-  localStorage.setItem('fin_v2',JSON.stringify(S));
-  saveToFirebase();
-}
-
+function save(){localStorage.setItem('fin_v2',JSON.stringify(S));saveToFirebase();}
 let S=load();
 
-function calc(){
-  const now=new Date(),start=new Date(S.pStart),end=new Date(S.pEnd);
-  const totalDays=Math.max(1,Math.round((end-start)/86400000)+1);
-  const daysLeft=Math.max(1,Math.round((end-now)/86400000)+1);
-  const totalInc=S.incomes.reduce((a,b)=>a+b,0)+S.extras.reduce((a,e)=>a+e.amount,0);
-  const available=Math.max(0,totalInc-S.saving);
-  const spent=S.expenses.filter(e=>new Date(e.date)>=start&&new Date(e.date)<=end).reduce((a,e)=>a+e.amount,0);
-  const remaining=Math.max(0,available-spent);
-  const daily=daysLeft>0?remaining/daysLeft:0;
-  const maxDaily=totalDays>0?available/totalDays:0;
-  const pct=maxDaily>0?Math.min(100,(daily/maxDaily)*100):0;
-  return{totalInc,available,spent,remaining,daysLeft,daily,maxDaily,pct,end};
-}
+function calc(){const now=new Date(),start=new Date(S.pStart),end=new Date(S.pEnd);const totalDays=Math.max(1,Math.round((end-start)/86400000)+1);const daysLeft=Math.max(1,Math.round((end-now)/86400000)+1);const totalInc=S.incomes.reduce((a,b)=>a+b,0)+S.extras.reduce((a,e)=>a+e.amount,0);const available=Math.max(0,totalInc-S.saving);const spent=S.expenses.filter(e=>new Date(e.date)>=start&&new Date(e.date)<=end).reduce((a,e)=>a+e.amount,0);const remaining=Math.max(0,available-spent);const daily=daysLeft>0?remaining/daysLeft:0;const maxDaily=totalDays>0?available/totalDays:0;const pct=maxDaily>0?Math.min(100,(daily/maxDaily)*100):0;return{totalInc,available,spent,remaining,daysLeft,daily,maxDaily,pct,end};}
 
-function render(){
-  const c=calc();
+function render(){const c=calc();
   document.getElementById('period-badge').textContent=`${fd(new Date(S.pStart))} — ${fd(c.end)}`;
   document.getElementById('daily-amount').innerHTML=`${fm(c.daily)}<span>€</span>`;
   document.getElementById('daily-sub').textContent=c.daysLeft===1?'Último día del período':`${c.daysLeft} días restantes · ${fm(c.remaining)}€ disponibles`;
-  const bar=document.getElementById('status-bar');
-  bar.style.width=c.pct+'%';
-  bar.style.background=c.pct>60?'var(--green)':c.pct>25?'var(--yellow)':'var(--red)';
+  const bar=document.getElementById('status-bar');bar.style.width=c.pct+'%';bar.style.background=c.pct>60?'var(--green)':c.pct>25?'var(--yellow)':'var(--red)';
   document.getElementById('bar-left').textContent=`${fm(c.spent)}€ gastado`;
   document.getElementById('bar-right').textContent=`máx. ${fm(c.maxDaily)}€/día`;
   document.getElementById('c-disponible').textContent=fm(c.available)+'€';
   document.getElementById('c-dias').textContent=c.daysLeft;
   document.getElementById('c-dias-sub').textContent=`hasta ${fd(c.end)}`;
-  const cg=document.getElementById('c-gastado');
-  cg.textContent=fm(c.spent)+'€';
-  cg.className='mini-card-value'+(c.spent>c.available*.8?' danger':c.spent>c.available*.5?' warning':'');
+  const cg=document.getElementById('c-gastado');cg.textContent=fm(c.spent)+'€';cg.className='mini-card-value'+(c.spent>c.available*.8?' danger':c.spent>c.available*.5?' warning':'');
   document.getElementById('c-ahorro').textContent=fm(S.saving)+'€';
-  document.getElementById('inc1').value=S.incomes[0]||'';
-  document.getElementById('inc2').value=S.incomes[1]||'';
-  document.getElementById('pn1').value=S.names[0];
-  document.getElementById('pn2').value=S.names[1];
-  document.getElementById('lbl1').textContent=S.names[0];
-  document.getElementById('lbl2').textContent=S.names[1];
-  const t=S.incomes.reduce((a,b)=>a+b,0);
-  document.getElementById('total-hogar').textContent=fm(t)+' €';
-  document.getElementById('income-badge').textContent=fm(t)+' €';
-  document.getElementById('saving-display').textContent=fm(S.saving)+' €';
-  const el=document.getElementById('extras-list');
-  el.innerHTML=S.extras.length?S.extras.map((x,i)=>`<div class="extra-item"><div class="extra-name">${x.name}</div><div class="extra-amount">+${fm(x.amount)}€</div><button class="extra-delete" onclick="delExtra(${i})">×</button></div>`).join(''):'<div style="font-size:13px;color:var(--text-dim);padding:8px 0">Sin ingresos extra</div>';
-  const rl=document.getElementById('recent-list');
+  document.getElementById('inc1').value=S.incomes[0]||'';document.getElementById('inc2').value=S.incomes[1]||'';
+  document.getElementById('pn1').value=S.names[0];document.getElementById('pn2').value=S.names[1];
+  document.getElementById('lbl1').textContent=S.names[0];document.getElementById('lbl2').textContent=S.names[1];
+  const t=S.incomes.reduce((a,b)=>a+b,0);document.getElementById('total-hogar').textContent=fm(t)+' €';document.getElementById('income-badge').textContent=fm(t)+' €';document.getElementById('saving-display').textContent=fm(S.saving)+' €';
+  document.getElementById('extras-list').innerHTML=S.extras.length?S.extras.map((x,i)=>`<div class="extra-item"><div class="extra-name">${x.name}</div><div class="extra-amount">+${fm(x.amount)}€</div><button class="extra-delete" onclick="delExtra(${i})">×</button></div>`).join(''):'<div style="font-size:13px;color:var(--text-dim);padding:8px 0">Sin ingresos extra</div>';
   const rec=[...S.expenses].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
-  rl.innerHTML=rec.length?rec.map(e=>expHTML(e)).join(''):'<div class="empty-state"><div class="empty-state-icon">◈</div><div class="empty-state-text">Sin gastos registrados</div></div>';
+  document.getElementById('recent-list').innerHTML=rec.length?rec.map(e=>expHTML(e)).join(''):'<div class="empty-state"><div class="empty-state-icon">◈</div><div class="empty-state-text">Sin gastos registrados</div></div>';
   renderAll();
-  const k=localStorage.getItem('gemini_key')||'';
-  if(k)document.getElementById('api-key').value=k;
+  const k=localStorage.getItem('gemini_key')||'';if(k)document.getElementById('api-key').value=k;
 }
 
-function renderAll(){
-  const el=document.getElementById('all-expenses');
-  if(!S.expenses.length){el.innerHTML='<div class="empty-state" style="margin-top:40px"><div class="empty-state-icon">◈</div><div class="empty-state-text">Sin gastos todavía</div></div>';return}
-  const byDay={};
-  [...S.expenses].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(e=>{const d=e.date.split('T')[0];if(!byDay[d])byDay[d]=[];byDay[d].push(e)});
-  el.innerHTML=Object.entries(byDay).map(([day,exps])=>{
-    const d=new Date(day+'T12:00:00');
-    const tot=exps.reduce((a,e)=>a+e.amount,0);
-    return`<div class="day-separator" style="padding:14px 20px 8px"><span>${fDay(d)}</span><span style="color:var(--text-mid)">${fm(tot)}€</span></div><div style="padding:0 20px">${exps.map(e=>expHTML(e,true)).join('')}</div>`;
-  }).join('');
-}
+function renderAll(){const el=document.getElementById('all-expenses');if(!S.expenses.length){el.innerHTML='<div class="empty-state" style="margin-top:40px"><div class="empty-state-icon">◈</div><div class="empty-state-text">Sin gastos todavía</div></div>';return}const byDay={};[...S.expenses].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(e=>{const d=e.date.split('T')[0];if(!byDay[d])byDay[d]=[];byDay[d].push(e)});el.innerHTML=Object.entries(byDay).map(([day,exps])=>{const d=new Date(day+'T12:00:00');const tot=exps.reduce((a,e)=>a+e.amount,0);return`<div class="day-separator" style="padding:14px 20px 8px"><span>${fDay(d)}</span><span style="color:var(--text-mid)">${fm(tot)}€</span></div><div style="padding:0 20px">${exps.map(e=>expHTML(e,true)).join('')}</div>`;}).join('');}
+function expHTML(e,del=false){const cat=CATS.find(c=>c.id===e.cat)||CATS[7];return`<div class="expense-item"><div class="expense-cat-icon" style="background:${cat.bg}">${cat.icon}</div><div class="expense-info"><div class="expense-name">${e.name}${e.rec?'<span class="recurring-badge">↻</span>':''}</div><div class="expense-meta">${ft(new Date(e.date))}</div></div><div class="expense-amount">-${fm(e.amount)}€</div>${del?`<button class="extra-delete" style="margin-left:8px" onclick="delExp('${e.id}')">×</button>`:''}</div>`;}
 
-function expHTML(e,del=false){
-  const cat=CATS.find(c=>c.id===e.cat)||CATS[7];
-  return`<div class="expense-item"><div class="expense-cat-icon" style="background:${cat.bg}">${cat.icon}</div><div class="expense-info"><div class="expense-name">${e.name}${e.rec?'<span class="recurring-badge">↻</span>':''}</div><div class="expense-meta">${ft(new Date(e.date))}</div></div><div class="expense-amount">-${fm(e.amount)}€</div>${del?`<button class="extra-delete" style="margin-left:8px" onclick="delExp('${e.id}')">×</button>`:''}</div>`;
-}
-
-// Navegación
-document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
-  const id=t.dataset.tab;
-  document.querySelectorAll('.tab,.nav-item').forEach(x=>x.classList.remove('active'));
-  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
-  t.classList.add('active');
-  document.querySelector(`[data-nav="${id}"]`)?.classList.add('active');
-  document.getElementById('page-'+id).classList.add('active');
-  document.getElementById('fab').style.display=(id==='gastos'||id==='inicio')?'block':'none';
-}));
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{const id=t.dataset.tab;document.querySelectorAll('.tab,.nav-item').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));t.classList.add('active');document.querySelector(`[data-nav="${id}"]`)?.classList.add('active');document.getElementById('page-'+id).classList.add('active');document.getElementById('fab').style.display=(id==='gastos'||id==='inicio')?'block':'none';}));
 document.querySelectorAll('.nav-item').forEach(n=>n.addEventListener('click',()=>document.querySelector(`[data-tab="${n.dataset.nav}"]`).click()));
 
 function updateIncomes(){S.incomes[0]=parseFloat(document.getElementById('inc1').value)||0;S.incomes[1]=parseFloat(document.getElementById('inc2').value)||0;save();render()}
@@ -539,81 +434,17 @@ function toggleRec(){recOn=!recOn;document.getElementById('rec-toggle').classLis
 function openAddExpense(){document.getElementById('exp-name').value='';document.getElementById('exp-amount').value='';recOn=false;selCat='otro';document.getElementById('rec-toggle').classList.remove('on');buildCats();openModal('expense-modal');setTimeout(()=>document.getElementById('exp-name').focus(),350)}
 function saveExpense(){const n=document.getElementById('exp-name').value.trim(),a=parseFloat(document.getElementById('exp-amount').value)||0;if(!n||!a)return;S.expenses.push({id:uid(),name:n,amount:a,cat:selCat,rec:recOn,date:new Date().toISOString()});save();closeModal('expense-modal');render()}
 function delExp(id){S.expenses=S.expenses.filter(e=>e.id!==id);save();render()}
-
-function confirmNextMonth(){
-  const saving=parseFloat(document.getElementById('nm-saving').value)||0;
-  const now=new Date();
-  S.pStart=now.toISOString();
-  S.pEnd=new Date(now.getFullYear(),now.getMonth()+2,0).toISOString();
-  S.saving=saving;S.extras=[];
-  S.expenses=S.expenses.filter(e=>e.rec);
-  save();closeModal('newmonth-modal');render();
-}
-
-// ── Consejero con Gemini ─────────────────────────
-function saveKey(){
-  const k=document.getElementById('api-key').value.trim();
-  if(k.startsWith('AIza'))localStorage.setItem('gemini_key',k);
-}
-
-async function ask(type){
-  const key=localStorage.getItem('gemini_key');
-  if(!key){alert('Introduce tu API Key de Gemini (AIza...).');return}
-  const c=calc();
-  const ctx=`Datos del hogar:
-- ${S.names[0]}: ${S.incomes[0]}€/mes
-- ${S.names[1]}: ${S.incomes[1]}€/mes
-- Total hogar: ${S.incomes.reduce((a,b)=>a+b,0)}€
-- Ahorro objetivo este período: ${S.saving}€
-- Disponible para gastar: ${c.available}€
-- Gastado hasta hoy: ${c.spent}€
-- Días restantes del período: ${c.daysLeft}
-- Gasto diario actual: ${fm(c.daily)}€/día
-- Gastos recurrentes: ${S.expenses.filter(e=>e.rec).map(e=>e.name+' '+e.amount+'€').join(', ')||'ninguno'}`;
-
-  const prompts={
-    ahorro:'Eres un asesor financiero personal experto. Analiza los datos del hogar y da consejos de ahorro específicos y accionables. Pregunta por la meta anual de ahorro y haz cálculos realistas.',
-    inversion:'Eres un asesor de inversiones. Basándote en los datos del hogar, sugiere opciones de inversión realistas para su perfil (conservador, moderado). Sé específico con porcentajes y productos.',
-    consejo:'Eres un asesor financiero. Da exactamente 3 consejos útiles, concretos y personalizados basados en los datos reales del hogar.',
-    analisis:'Analiza en detalle el patrón de gasto del hogar. Identifica qué se puede optimizar, dónde se gasta de más y qué categorías son prioritarias.',
-    deudas:'Eres un especialista en gestión de deudas. Pregunta sobre las deudas actuales del hogar y crea un plan de liquidación realista y priorizado.',
-    objetivo:'Ayuda a definir una meta financiera concreta (casa, coche, viaje, fondo emergencia). Haz preguntas, calcula plazos realistas y crea un plan de ahorro mensual.'
-  };
-
-  const chat=document.getElementById('adv-chat'),msg=document.getElementById('adv-msg');
-  chat.classList.add('visible');
-  msg.innerHTML='<div class="advisor-thinking"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div>';
-
-  try{
-    const r=await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
-      {method:'POST',
-       headers:{'Content-Type':'application/json'},
-       body:JSON.stringify({
-         contents:[{parts:[{text:prompts[type]+'\n\nCONTEXTO DEL HOGAR:\n'+ctx+'\n\nResponde en español. Sé directo, práctico y usa números reales. Máximo 250 palabras.'}]}],
-         generationConfig:{temperature:0.7,maxOutputTokens:500}
-       })
-      }
-    );
-    const d=await r.json();
-    msg.textContent=d.candidates?.[0]?.content?.parts?.[0]?.text||'Sin respuesta.';
-  }catch(e){msg.textContent='Error de conexión con Gemini.'}
-}
-
-// Modales
+function confirmNextMonth(){const saving=parseFloat(document.getElementById('nm-saving').value)||0;const now=new Date();S.pStart=now.toISOString();S.pEnd=new Date(now.getFullYear(),now.getMonth()+2,0).toISOString();S.saving=saving;S.extras=[];S.expenses=S.expenses.filter(e=>e.rec);save();closeModal('newmonth-modal');render();}
+function saveKey(){const k=document.getElementById('api-key').value.trim();if(k.startsWith('AIza'))localStorage.setItem('gemini_key',k);}
+async function ask(type){const key=localStorage.getItem('gemini_key');if(!key){alert('Introduce tu API Key de Gemini.');return}const c=calc();const ctx=`${S.names[0]}: ${S.incomes[0]}€, ${S.names[1]}: ${S.incomes[1]}€. Ahorro: ${S.saving}€. Disponible: ${c.available}€. Gastado: ${c.spent}€. Días restantes: ${c.daysLeft}. Diario: ${fm(c.daily)}€`;const prompts={ahorro:'Asesor financiero: da consejos de ahorro específicos.',inversion:'Asesor de inversiones: sugiere opciones realistas.',consejo:'Da 3 consejos útiles y concretos.',analisis:'Analiza el patrón de gasto e identifica qué optimizar.',deudas:'Pregunta sobre deudas y crea un plan de liquidación.',objetivo:'Ayuda a definir una meta financiera concreta.'};const chat=document.getElementById('adv-chat'),msg=document.getElementById('adv-msg');chat.classList.add('visible');msg.innerHTML='<div class="advisor-thinking"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div>';try{const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompts[type]+'\n\nContexto: '+ctx+'\nResponde en español, máximo 250 palabras.'}]}],generationConfig:{temperature:0.7,maxOutputTokens:500}})});const d=await r.json();msg.textContent=d.candidates?.[0]?.content?.parts?.[0]?.text||'Sin respuesta.';}catch(e){msg.textContent='Error de conexión.';}}
 function openModal(id){const el=document.getElementById(id);el.classList.add('open');el.onclick=e=>{if(e.target===el)closeModal(id)}}
 function closeModal(id){document.getElementById(id).classList.remove('open')}
-
-// Utils
 function uid(){return Math.random().toString(36).slice(2,10)}
 function fm(n){return Number(n).toLocaleString('es-ES',{minimumFractionDigits:0,maximumFractionDigits:2})}
 function fd(d){return new Date(d).toLocaleDateString('es-ES',{day:'numeric',month:'short'})}
 function fDay(d){const now=new Date(),diff=Math.round((now-d)/86400000);return diff===0?'Hoy':diff===1?'Ayer':d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'short'})}
 function ft(d){return d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}
 
-// Arrancar
 render();
 loadFromFirebase().then(()=>startRealtimeSync());
 </script>
-</body>
-</html>
