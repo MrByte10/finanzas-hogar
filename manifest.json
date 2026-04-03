@@ -1,21 +1,17 @@
 {
-  "name": "Finanzas · Hogar",
-  "short_name": "Finanzas",
+  "name": "Aurum · Gestión Financiera",
+  "short_name": "Aurum",
   "description": "Gestor financiero del hogar",
-  "start_url": "/",
+  "start_url": "/finanzas-hogar/",
+  "scope": "/finanzas-hogar/",
   "display": "standalone",
-  "background_color": "#0a0a0f",
-  "theme_color": "#0a0a0f",
+  "background_color": "#08080f",
+  "theme_color": "#08080f",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "icon.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "icon.png",
-      "sizes": "512x512",
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
       "type": "image/png"
     }
   ]
