@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+body{margin:0;background:#08080f;display:flex;flex-direction:column;align-items:center;padding:20px;font-family:sans-serif;color:#fff}
+canvas{border-radius:40px;margin:10px}
+.btn{margin-top:10px;padding:12px 24px;background:#c9a84c;color:#08080f;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600}
+p{color:#7a7870;font-size:12px;margin-top:8px;text-align:center}
+</style>
+</head>
+<body>
+<p>Icono generado — haz clic derecho → Guardar como "apple-touch-icon.png"</p>
+<canvas id="c" width="180" height="180"></canvas>
+<button class="btn" onclick="download()">⬇ Descargar apple-touch-icon.png</button>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const W = 180, H = 180;
+
+// Fondo negro
+ctx.fillStyle = '#08080f';
+ctx.beginPath();
+ctx.roundRect(0, 0, W, H, 36);
+ctx.fill();
+
+// Marco dorado sutil
+ctx.strokeStyle = 'rgba(201,168,76,0.25)';
+ctx.lineWidth = 1;
+ctx.beginPath();
+ctx.roundRect(6, 6, W-12, H-12, 28);
+ctx.stroke();
+
+// A en Cormorant Garamond italic
+const grad = ctx.createLinearGradient(40, 20, 140, 120);
+grad.addColorStop(0, '#e8cc7a');
+grad.addColorStop(0.4, '#c9a84c');
+grad.addColorStop(1, '#8a6820');
+
+ctx.fillStyle = grad;
+ctx.font = 'italic 300 108px "Cormorant Garamond", Georgia, serif';
+ctx.textAlign = 'center';
+ctx.textBaseline = 'alphabetic';
+ctx.fillText('A', 90, 126);
+
+// Línea separadora
+const lineGrad = ctx.createLinearGradient(30, 0, 150, 0);
+lineGrad.addColorStop(0, 'transparent');
+lineGrad.addColorStop(0.5, '#c9a84c');
+lineGrad.addColorStop(1, 'transparent');
+ctx.strokeStyle = lineGrad;
+ctx.lineWidth = 0.7;
+ctx.beginPath();
+ctx.moveTo(30, 138);
+ctx.lineTo(150, 138);
+ctx.stroke();
+
+// AURUM texto
+ctx.fillStyle = '#c9a84c';
+ctx.font = '300 10px "Cormorant SC", "Cormorant Garamond", Georgia, serif';
+ctx.letterSpacing = '4px';
+ctx.textAlign = 'center';
+ctx.fillText('AURUM', 90, 155);
+
+function download(){
+  const a = document.createElement('a');
+  a.download = 'apple-touch-icon.png';
+  a.href = c.toDataURL('image/png');
+  a.click();
+}
+</script>
+</body>
+</html>
