@@ -139,6 +139,7 @@ html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-seri
   <div id="header-top">
     <span class="app-name">Aurum</span>
     <span class="period-badge" id="period-badge">—</span>
+    <span id="sync-status" style="font-size:10px;color:var(--green);letter-spacing:.05em"></span>
   </div>
 </div>
 
@@ -248,8 +249,8 @@ html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-seri
   <!-- CONSEJERO -->
   <div class="page" id="page-consejero">
     <div class="api-notice">
-      <div class="api-notice-label">OpenAI API Key (GPT-4o mini)</div>
-      <input type="password" id="api-key" placeholder="sk-..." oninput="saveKey()">
+      <div class="api-notice-label">Gemini API Key — Consejero IA</div>
+      <input type="password" id="api-key" placeholder="AIza..." oninput="saveKey()">
     </div>
     <div class="advisor-grid">
       <div class="advisor-card" onclick="ask('ahorro')">
@@ -367,14 +368,80 @@ html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-seri
   </div>
 </div>
 
-<script>
+<script type="module">
+// ═══════════════════════════════════════════════
+// FIREBASE + GEMINI
+// ═══════════════════════════════════════════════
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+const FB_CONFIG = {
+  apiKey: "AIzaSyAKf4OjRbFXwGXhyxlZPNlJNDzXbeDZ6u4",
+  authDomain: "cyberfinance-64a23.firebaseapp.com",
+  projectId: "cyberfinance-64a23",
+  storageBucket: "cyberfinance-64a23.firebasestorage.app",
+  messagingSenderId: "797645711269",
+  appId: "1:797645711269:web:5ca15ea62c532711ceaa4c"
+};
+
+const fbApp = initializeApp(FB_CONFIG);
+const db = getFirestore(fbApp);
+const DOC_ID = 'hogar'; // documento compartido del hogar
+
+// ── Sync Firebase ────────────────────────────────
+let isSyncing = false;
+
+async function loadFromFirebase() {
+  try {
+    const snap = await getDoc(doc(db, 'aurum', DOC_ID));
+    if (snap.exists()) {
+      S = { ...def(), ...snap.data() };
+      render();
+      showSyncStatus('✓ Sincronizado');
+    }
+  } catch(e) {
+    showSyncStatus('Sin conexión — modo local');
+  }
+}
+
+async function saveToFirebase() {
+  if (isSyncing) return;
+  isSyncing = true;
+  try {
+    await setDoc(doc(db, 'aurum', DOC_ID), S);
+    showSyncStatus('✓ Guardado');
+  } catch(e) {
+    showSyncStatus('Error al guardar');
+  }
+  isSyncing = false;
+}
+
+// Escuchar cambios en tiempo real (tu mujer actualiza → tú ves los cambios)
+function startRealtimeSync() {
+  onSnapshot(doc(db, 'aurum', DOC_ID), (snap) => {
+    if (snap.exists() && !isSyncing) {
+      S = { ...def(), ...snap.data() };
+      render();
+      showSyncStatus('✓ Actualizado');
+    }
+  });
+}
+
+function showSyncStatus(msg) {
+  const el = document.getElementById('sync-status');
+  if (el) { el.textContent = msg; setTimeout(() => el.textContent = '', 3000); }
+}
+
 const CATS=[{id:'food',icon:'◈',name:'Compra',bg:'#1e2e28'},{id:'resto',icon:'◇',name:'Resto',bg:'#2e1e1e'},{id:'transport',icon:'◉',name:'Transporte',bg:'#1e242e'},{id:'ocio',icon:'◎',name:'Ocio',bg:'#261e2e'},{id:'salud',icon:'◐',name:'Salud',bg:'#2e261e'},{id:'hogar',icon:'□',name:'Hogar',bg:'#1e2e2e'},{id:'ropa',icon:'◑',name:'Ropa',bg:'#2e1e26'},{id:'otro',icon:'·',name:'Otro',bg:'#242424'}];
 
 let selCat='otro', recOn=false;
 
 function load(){try{return JSON.parse(localStorage.getItem('fin_v2'))||def()}catch(e){return def()}}
 function def(){const n=new Date();return{names:['Tú','Pareja'],incomes:[0,0],saving:0,extras:[],expenses:[],pStart:new Date(n.getFullYear(),n.getMonth(),1).toISOString(),pEnd:new Date(n.getFullYear(),n.getMonth()+1,0).toISOString()}}
-function save(){localStorage.setItem('fin_v2',JSON.stringify(S))}
+function save(){
+  localStorage.setItem('fin_v2',JSON.stringify(S));
+  saveToFirebase();
+}
 
 let S=load();
 
@@ -394,18 +461,14 @@ function calc(){
 
 function render(){
   const c=calc();
-  // Header
   document.getElementById('period-badge').textContent=`${fd(new Date(S.pStart))} — ${fd(c.end)}`;
-  // Daily
   document.getElementById('daily-amount').innerHTML=`${fm(c.daily)}<span>€</span>`;
   document.getElementById('daily-sub').textContent=c.daysLeft===1?'Último día del período':`${c.daysLeft} días restantes · ${fm(c.remaining)}€ disponibles`;
-  // Bar
   const bar=document.getElementById('status-bar');
   bar.style.width=c.pct+'%';
   bar.style.background=c.pct>60?'var(--green)':c.pct>25?'var(--yellow)':'var(--red)';
   document.getElementById('bar-left').textContent=`${fm(c.spent)}€ gastado`;
   document.getElementById('bar-right').textContent=`máx. ${fm(c.maxDaily)}€/día`;
-  // Cards
   document.getElementById('c-disponible').textContent=fm(c.available)+'€';
   document.getElementById('c-dias').textContent=c.daysLeft;
   document.getElementById('c-dias-sub').textContent=`hasta ${fd(c.end)}`;
@@ -413,7 +476,6 @@ function render(){
   cg.textContent=fm(c.spent)+'€';
   cg.className='mini-card-value'+(c.spent>c.available*.8?' danger':c.spent>c.available*.5?' warning':'');
   document.getElementById('c-ahorro').textContent=fm(S.saving)+'€';
-  // Privado
   document.getElementById('inc1').value=S.incomes[0]||'';
   document.getElementById('inc2').value=S.incomes[1]||'';
   document.getElementById('pn1').value=S.names[0];
@@ -424,17 +486,13 @@ function render(){
   document.getElementById('total-hogar').textContent=fm(t)+' €';
   document.getElementById('income-badge').textContent=fm(t)+' €';
   document.getElementById('saving-display').textContent=fm(S.saving)+' €';
-  // Extras
   const el=document.getElementById('extras-list');
   el.innerHTML=S.extras.length?S.extras.map((x,i)=>`<div class="extra-item"><div class="extra-name">${x.name}</div><div class="extra-amount">+${fm(x.amount)}€</div><button class="extra-delete" onclick="delExtra(${i})">×</button></div>`).join(''):'<div style="font-size:13px;color:var(--text-dim);padding:8px 0">Sin ingresos extra</div>';
-  // Recientes
   const rl=document.getElementById('recent-list');
   const rec=[...S.expenses].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
   rl.innerHTML=rec.length?rec.map(e=>expHTML(e)).join(''):'<div class="empty-state"><div class="empty-state-icon">◈</div><div class="empty-state-text">Sin gastos registrados</div></div>';
-  // Todos los gastos
   renderAll();
-  // API key
-  const k=localStorage.getItem('oai_key')||'';
+  const k=localStorage.getItem('gemini_key')||'';
   if(k)document.getElementById('api-key').value=k;
 }
 
@@ -467,19 +525,12 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
 }));
 document.querySelectorAll('.nav-item').forEach(n=>n.addEventListener('click',()=>document.querySelector(`[data-tab="${n.dataset.nav}"]`).click()));
 
-// Ingresos
 function updateIncomes(){S.incomes[0]=parseFloat(document.getElementById('inc1').value)||0;S.incomes[1]=parseFloat(document.getElementById('inc2').value)||0;save();render()}
 function updateNames(){S.names[0]=document.getElementById('pn1').value||'Tú';S.names[1]=document.getElementById('pn2').value||'Pareja';save()}
-
-// Ahorro
 function openSavingModal(){document.getElementById('sav-input').value=S.saving||'';openModal('saving-modal')}
 function saveSaving(){S.saving=parseFloat(document.getElementById('sav-input').value)||0;save();closeModal('saving-modal');render()}
-
-// Extras
 function saveExtra(){const n=document.getElementById('ext-name').value.trim(),a=parseFloat(document.getElementById('ext-amount').value)||0;if(!n||!a)return;S.extras.push({name:n,amount:a,id:uid()});save();closeModal('extra-modal');render()}
 function delExtra(i){S.extras.splice(i,1);save();render()}
-
-// Gastos
 function buildCats(){document.getElementById('cat-grid').innerHTML=CATS.map(c=>`<div class="cat-option${c.id===selCat?' selected':''}" onclick="selCatFn('${c.id}')"><div class="cat-icon">${c.icon}</div><div class="cat-name">${c.name}</div></div>`).join('')}
 function selCatFn(id){selCat=id;buildCats()}
 function toggleRec(){recOn=!recOn;document.getElementById('rec-toggle').classList.toggle('on',recOn)}
@@ -487,7 +538,6 @@ function openAddExpense(){document.getElementById('exp-name').value='';document.
 function saveExpense(){const n=document.getElementById('exp-name').value.trim(),a=parseFloat(document.getElementById('exp-amount').value)||0;if(!n||!a)return;S.expenses.push({id:uid(),name:n,amount:a,cat:selCat,rec:recOn,date:new Date().toISOString()});save();closeModal('expense-modal');render()}
 function delExp(id){S.expenses=S.expenses.filter(e=>e.id!==id);save();render()}
 
-// Siguiente período
 function confirmNextMonth(){
   const saving=parseFloat(document.getElementById('nm-saving').value)||0;
   const now=new Date();
@@ -498,22 +548,54 @@ function confirmNextMonth(){
   save();closeModal('newmonth-modal');render();
 }
 
-// Consejero IA
-function saveKey(){const k=document.getElementById('api-key').value.trim();if(k.startsWith('sk-'))localStorage.setItem('oai_key',k)}
+// ── Consejero con Gemini ─────────────────────────
+function saveKey(){
+  const k=document.getElementById('api-key').value.trim();
+  if(k.startsWith('AIza'))localStorage.setItem('gemini_key',k);
+}
+
 async function ask(type){
-  const key=localStorage.getItem('oai_key');
-  if(!key){alert('Introduce tu API Key de OpenAI.');return}
+  const key=localStorage.getItem('gemini_key');
+  if(!key){alert('Introduce tu API Key de Gemini (AIza...).');return}
   const c=calc();
-  const ctx=`Ingresos: ${S.names[0]} ${S.incomes[0]}€, ${S.names[1]} ${S.incomes[1]}€. Total hogar: ${S.incomes.reduce((a,b)=>a+b,0)}€. Ahorro objetivo: ${S.saving}€. Disponible: ${c.available}€. Gastado: ${c.spent}€. Días restantes: ${c.daysLeft}. Gasto diario: ${fm(c.daily)}€/día.`;
-  const prompts={ahorro:'Eres asesor financiero. Da consejos de ahorro específicos y pregunta por metas anuales.',inversion:'Eres asesor de inversiones. Sugiere opciones realistas para este perfil.',consejo:'Eres asesor financiero. Da 3 consejos útiles y concretos.',analisis:'Analiza el patrón de gasto y explica qué se puede optimizar.',deudas:'Pregunta sobre deudas y crea un plan de liquidación realista.',objetivo:'Ayuda a definir una meta financiera concreta y planificarla.'};
+  const ctx=`Datos del hogar:
+- ${S.names[0]}: ${S.incomes[0]}€/mes
+- ${S.names[1]}: ${S.incomes[1]}€/mes
+- Total hogar: ${S.incomes.reduce((a,b)=>a+b,0)}€
+- Ahorro objetivo este período: ${S.saving}€
+- Disponible para gastar: ${c.available}€
+- Gastado hasta hoy: ${c.spent}€
+- Días restantes del período: ${c.daysLeft}
+- Gasto diario actual: ${fm(c.daily)}€/día
+- Gastos recurrentes: ${S.expenses.filter(e=>e.rec).map(e=>e.name+' '+e.amount+'€').join(', ')||'ninguno'}`;
+
+  const prompts={
+    ahorro:'Eres un asesor financiero personal experto. Analiza los datos del hogar y da consejos de ahorro específicos y accionables. Pregunta por la meta anual de ahorro y haz cálculos realistas.',
+    inversion:'Eres un asesor de inversiones. Basándote en los datos del hogar, sugiere opciones de inversión realistas para su perfil (conservador, moderado). Sé específico con porcentajes y productos.',
+    consejo:'Eres un asesor financiero. Da exactamente 3 consejos útiles, concretos y personalizados basados en los datos reales del hogar.',
+    analisis:'Analiza en detalle el patrón de gasto del hogar. Identifica qué se puede optimizar, dónde se gasta de más y qué categorías son prioritarias.',
+    deudas:'Eres un especialista en gestión de deudas. Pregunta sobre las deudas actuales del hogar y crea un plan de liquidación realista y priorizado.',
+    objetivo:'Ayuda a definir una meta financiera concreta (casa, coche, viaje, fondo emergencia). Haz preguntas, calcula plazos realistas y crea un plan de ahorro mensual.'
+  };
+
   const chat=document.getElementById('adv-chat'),msg=document.getElementById('adv-msg');
   chat.classList.add('visible');
   msg.innerHTML='<div class="advisor-thinking"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div>';
+
   try{
-    const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'system',content:prompts[type]+'\n\nContexto:\n'+ctx+'\nResponde en español, claro y conciso. Máximo 200 palabras.'},{role:'user',content:'Ayúdame con '+type}],max_tokens:400,temperature:0.7})});
+    const r=await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+      {method:'POST',
+       headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({
+         contents:[{parts:[{text:prompts[type]+'\n\nCONTEXTO DEL HOGAR:\n'+ctx+'\n\nResponde en español. Sé directo, práctico y usa números reales. Máximo 250 palabras.'}]}],
+         generationConfig:{temperature:0.7,maxOutputTokens:500}
+       })
+      }
+    );
     const d=await r.json();
-    msg.textContent=d.choices?.[0]?.message?.content||'Error al obtener respuesta.';
-  }catch(e){msg.textContent='Error de conexión.'}
+    msg.textContent=d.candidates?.[0]?.content?.parts?.[0]?.text||'Sin respuesta.';
+  }catch(e){msg.textContent='Error de conexión con Gemini.'}
 }
 
 // Modales
@@ -527,7 +609,9 @@ function fd(d){return new Date(d).toLocaleDateString('es-ES',{day:'numeric',mont
 function fDay(d){const now=new Date(),diff=Math.round((now-d)/86400000);return diff===0?'Hoy':diff===1?'Ayer':d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'short'})}
 function ft(d){return d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}
 
+// Arrancar
 render();
+loadFromFirebase().then(()=>startRealtimeSync());
 </script>
 </body>
 </html>
